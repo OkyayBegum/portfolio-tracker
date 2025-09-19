@@ -1,0 +1,37 @@
+# -------------------
+# Flutter / Dart
+# -------------------
+**/build/
+**/.dart_tool/
+**/.packages
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.idea/
+**/.vscode/
+**/.DS_Store
+
+# Lock files - genelde ignore edilir ama Flutter için hariç tutuyoruz
+*.lock
+!frontend/portfolio_tracker/pubspec.lock
+
+# -------------------
+# Go
+# -------------------
+**/bin/
+**/pkg/
+**/vendor/
+*.exe
+*.test
+*.out
+go.sum
+
+# -------------------
+# VSCode / Workspace
+# -------------------
+*.code-workspace
+
+# -------------------
+# System files
+# -------------------
+Thumbs.db
+
