@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../data/bist_api_service.dart';
+import '../data/backend_api_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -11,11 +11,17 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final TextEditingController _symbolController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
-  final BistApiService _apiService = BistApiService();
+  final BackendApiService _backend = BackendApiService();
   List<_StockEntry> _portfolio = [];
   bool _isLoading = false;
   String? _error;
   double? _grandTotal;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPortfolio();
+  }
 
 
   Future<void> _addStock() async {
@@ -33,14 +39,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
     try {
-      final price = await _apiService.fetchCurrentPrice(symbol);
-      if (price == null) {
+      // Send symbol and lots to backend; backend will fetch current price.
+      Map<String, dynamic> created;
+      try {
+        created = await _backend.addItem(symbol, amount.toInt());
+      } catch (e) {
         setState(() {
           _isLoading = false;
-          _error = 'Price not found for $symbol.';
+          _error = 'Failed to save to backend: ${e.toString()}';
         });
         return;
       }
+
+      final price = (created['price'] as num).toDouble();
       setState(() {
         _portfolio.add(_StockEntry(symbol: symbol, amount: amount, price: price));
         _symbolController.clear();
@@ -56,11 +67,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _deleteStock(int index) {
+  // Load portfolio from backend when the screen/app starts
+  Future<void> _loadPortfolio() async {
     setState(() {
-      _portfolio.removeAt(index);
-      _calculateGrandTotal();
+      _isLoading = true;
+      _error = null;
     });
+    try {
+      final list = await _backend.getPortfolio();
+      final entries = list.map((m) {
+        final symbol = (m['symbol'] as String?) ?? '';
+        final lotsNum = m['lots'];
+        final priceNum = m['price'];
+        final amount = (lotsNum is num) ? lotsNum.toDouble() : double.tryParse('$lotsNum') ?? 0.0;
+        final price = (priceNum is num) ? priceNum.toDouble() : double.tryParse('$priceNum') ?? 0.0;
+        return _StockEntry(symbol: symbol, amount: amount, price: price);
+      }).toList();
+      setState(() {
+        _portfolio = entries;
+        _isLoading = false;
+      });
+      _calculateGrandTotal();
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _error = 'Failed to load portfolio: ${e.toString()}';
+      });
+    }
+  }
+
+  Future<void> _deleteStock(int index) async {
+    if (index < 0 || index >= _portfolio.length) return;
+    final symbol = _portfolio[index].symbol;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      await _backend.deleteItem(symbol);
+      setState(() {
+        _portfolio.removeAt(index);
+        _isLoading = false;
+      });
+      _calculateGrandTotal();
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _error = 'Failed to delete: ${e.toString()}';
+      });
+      // give the user immediate feedback
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_error!)));
+    }
   }
 
   void _updateAmount(int index, String value) {
