@@ -1,7 +1,67 @@
 [
   {
-    "symbol": "TEST2",
-    "lots": 3,
-    "price": 42.5
+    "symbol": "MPARK",
+    "lots": 424,
+    "price": 336
+  },
+  {
+    "symbol": "MAVI",
+    "lots": 3000,
+    "price": 40.3
+  },
+  {
+    "symbol": "MACKO",
+    "lots": 2046,
+    "price": 42.7
+  },
+  {
+    "symbol": "ASTOR",
+    "lots": 574,
+    "price": 98.2
+  },
+  {
+    "symbol": "EBEBK",
+    "lots": 373,
+    "price": 54.3
+  },
+  {
+    "symbol": "TRGYO",
+    "lots": 70,
+    "price": 76.8
+  },
+  {
+    "symbol": "GRSEL",
+    "lots": 10,
+    "price": 341.25
+  },
+  {
+    "symbol": "RYGYO",
+    "lots": 20,
+    "price": 20.64
+  },
+  {
+    "symbol": "FROTO",
+    "lots": 391,
+    "price": 99.25
+  },
+  {
+    "symbol": "TUPRS",
+    "lots": 124,
+    "price": 197.6
+  },
+  {
+    "symbol": "KCHOL",
+    "lots": 79,
+    "price": 171.6
+  },
+  {
+    "symbol": "ANSGR",
+    "lots": 388,
+    "price": 23.18
+  },
+  {
+    "symbol": "VAKKO",
+    "lots": 120,
+    "price": 66.6
   }
 ]
