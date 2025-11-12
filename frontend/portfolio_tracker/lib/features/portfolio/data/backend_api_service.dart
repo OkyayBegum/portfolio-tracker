@@ -9,8 +9,8 @@ class BackendApiService {
 
   static String _defaultBaseUrl() {
     // Default base for development: web -> localhost, native -> Android emulator host
-    if (kIsWeb) return 'http://localhost:8080';
-    return 'http://10.0.2.2:8080';
+    if (kIsWeb) return 'https://api.gitandroid.com';
+    return 'https://api.gitandroid.com';
   }
 
   // Sends symbol and lots to backend. Backend will fetch current price.
@@ -24,6 +24,20 @@ class BackendApiService {
     );
     if (res.statusCode != 201) {
       throw Exception('addItem failed: ${res.statusCode} ${res.body}');
+    }
+    return json.decode(res.body) as Map<String, dynamic>;
+  }
+
+  // Add gold portfolio item. unit: gram, çeyrek, yarım, tam. amount is number of units (can be fractional for grams)
+  Future<Map<String, dynamic>> addGold(String unit, double amount) async {
+    final uri = Uri.parse('$baseUrl/api/add-gold');
+    final res = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'unit': unit, 'amount': amount}),
+    );
+    if (res.statusCode != 201) {
+      throw Exception('addGold failed: ${res.statusCode} ${res.body}');
     }
     return json.decode(res.body) as Map<String, dynamic>;
   }
@@ -46,5 +60,27 @@ class BackendApiService {
     if (res.statusCode != 200) {
       throw Exception('deleteItem failed: ${res.statusCode} ${res.body}');
     }
+  }
+
+  // Get manually editable other values (BES, CASH)
+  Future<Map<String, double>> getOther() async {
+    final uri = Uri.parse('$baseUrl/api/other');
+    final res = await http.get(uri);
+    if (res.statusCode != 200) {
+      throw Exception('getOther failed: ${res.statusCode} ${res.body}');
+    }
+    final Map<String, dynamic> decoded = json.decode(res.body) as Map<String, dynamic>;
+    return decoded.map((k, v) => MapEntry(k, (v as num).toDouble()));
+  }
+
+  // Update one or more keys in the other map. Payload is a map like {"BES": 1234.56}
+  Future<Map<String, double>> updateOther(Map<String, double> updates) async {
+    final uri = Uri.parse('$baseUrl/api/other');
+    final res = await http.put(uri, headers: {'Content-Type': 'application/json'}, body: json.encode(updates));
+    if (res.statusCode != 200) {
+      throw Exception('updateOther failed: ${res.statusCode} ${res.body}');
+    }
+    final Map<String, dynamic> decoded = json.decode(res.body) as Map<String, dynamic>;
+    return decoded.map((k, v) => MapEntry(k, (v as num).toDouble()));
   }
 }

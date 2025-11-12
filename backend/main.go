@@ -41,8 +41,11 @@ func main() {
 	r.HandleFunc("/api/portfolio", getPortfolio).Methods("GET")
 	r.HandleFunc("/api/portfolio/total", getPortfolioTotal).Methods("GET")
 	r.HandleFunc("/api/add", addItem).Methods("POST")
+	r.HandleFunc("/api/add-gold", addGold).Methods("POST")
 	r.HandleFunc("/api/update", updateItem).Methods("PUT")
 	r.HandleFunc("/api/delete/{symbol}", deleteItem).Methods("DELETE")
+	r.HandleFunc("/api/other", getOther).Methods("GET")
+	r.HandleFunc("/api/other", updateOther).Methods("PUT")
 
 	log.Println("listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", r))
@@ -72,7 +75,36 @@ func getPortfolio(w http.ResponseWriter, r *http.Request) {
 			defer func() { <-sem }()
 
 			// Try to fetch current price; don't fail the whole request on individual errors
-			if p, err := fetchCurrentPrice(item.Symbol); err == nil && p > 0 {
+			var p float64
+			var err error
+
+			// Detect gold items. Older code used prefix "ALTIN-<unit>";
+			// newer persisted items use canonical tags like GRAMALTIN, CEYREKALTIN, YARIMALTIN, TAMALTIN.
+			// Map those tags back to the friendly unit names expected by fetchGoldUnitPrice.
+			goldMap := map[string]string{
+				"GRAMALTIN":   "gram",
+				"CEYREKALTIN": "çeyrek",
+				"YARIMALTIN":  "yarım",
+				"TAMALTIN":    "tam",
+			}
+
+			// Do not refresh prices for manual entries BES/CASH — those are user-controlled.
+			if strings.EqualFold(item.Symbol, "BES") || strings.EqualFold(item.Symbol, "CASH") {
+				// leave updatedPrices[idx] == 0 to indicate no refresh; use existing stored price
+				return
+			}
+
+			if strings.HasPrefix(item.Symbol, "ALTIN-") {
+				// legacy format: ALTIN-<unit>
+				unit := strings.TrimPrefix(item.Symbol, "ALTIN-")
+				p, err = fetchGoldUnitPrice(unit)
+			} else if unit, ok := goldMap[strings.ToUpper(item.Symbol)]; ok {
+				// canonical tag stored in portfolio
+				p, err = fetchGoldUnitPrice(unit)
+			} else {
+				p, err = fetchCurrentPrice(item.Symbol)
+			}
+			if err == nil && p > 0 {
 				updatedPrices[idx] = p
 			} else {
 				// keep zero to indicate no update; log for debugging
@@ -120,7 +152,7 @@ func getPortfolioTotal(w http.ResponseWriter, r *http.Request) {
 	defer mu.Unlock()
 	var total float64
 	for _, item := range portfolio {
-		total += float64(item.Lots) * item.Price
+		total += item.Lots * item.Price
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]float64{"total": total}); err != nil {
@@ -131,8 +163,8 @@ func getPortfolioTotal(w http.ResponseWriter, r *http.Request) {
 func addItem(w http.ResponseWriter, r *http.Request) {
 	// Expect payload: {"symbol":"ABC","lots":2}
 	var payload struct {
-		Symbol string `json:"symbol"`
-		Lots   int    `json:"lots"`
+		Symbol string  `json:"symbol"`
+		Lots   float64 `json:"lots"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -168,6 +200,66 @@ func addItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(item)
+}
+
+// addGold accepts payload {"unit":"gram|çeyrek|yarım|tam","amount":number}
+// It fetches current unit price from genelpara, persists an ALTIN-<unit> portfolio item
+func addGold(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Unit   string  `json:"unit"`
+		Amount float64 `json:"amount"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if payload.Unit == "" || payload.Amount <= 0 {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	pricePerUnit, err := fetchGoldUnitPrice(payload.Unit)
+	if err != nil {
+		log.Printf("failed to fetch gold price for %s: %v", payload.Unit, err)
+		http.Error(w, "failed to fetch gold price", http.StatusBadGateway)
+		return
+	}
+
+	// map user-friendly unit to agreed tag names used by Truncgil
+	unitKey := strings.ToLower(payload.Unit)
+	var tag string
+	switch unitKey {
+	case "gram":
+		tag = "GRAMALTIN"
+	case "çeyrek", "ceyrek":
+		tag = "CEYREKALTIN"
+	case "yarım", "yarim":
+		tag = "YARIMALTIN"
+	case "tam":
+		tag = "TAMALTIN"
+	default:
+		// fallback to uppercased unit
+		tag = strings.ToUpper(payload.Unit)
+	}
+
+	sym := tag
+	item := models.PortfolioItem{Symbol: sym, Lots: payload.Amount, Price: pricePerUnit}
+
+	mu.Lock()
+	old := append([]models.PortfolioItem(nil), portfolio...)
+	portfolio = append(portfolio, item)
+	if err := savePortfolioToFile(); err != nil {
+		portfolio = old
+		mu.Unlock()
+		log.Printf("failed to save gold item: %v", err)
+		http.Error(w, "failed to persist gold item", http.StatusInternalServerError)
+		return
+	}
+	mu.Unlock()
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(item)
@@ -257,6 +349,83 @@ func fetchCurrentPrice(symbol string) (float64, error) {
 	}
 
 	return 0, fmt.Errorf("could not fetch price for %s after %d attempts", symbol, maxAttempts)
+}
+
+// fetchGoldUnitPrice queries genelpara embed altin.json and returns the price for the given unit
+// unit examples: "gram", "çeyrek", "yarım", "tam"
+func fetchGoldUnitPrice(unit string) (float64, error) {
+	// Use Truncgil's consolidated feed (buying prices) which is stable for market data
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("https://finans.truncgil.com/v4/today.json")
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("gold API status %d", resp.StatusCode)
+	}
+	var doc map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		return 0, err
+	}
+	// Map friendly unit to canonical tag used in Truncgil feed
+	target := ""
+	switch strings.ToLower(unit) {
+	case "gram":
+		target = "GRAMALTIN"
+	case "çeyrek", "ceyrek":
+		target = "CEYREKALTIN"
+	case "yarım", "yarim":
+		target = "YARIMALTIN"
+	case "tam":
+		target = "TAMALTIN"
+	default:
+		target = strings.ToUpper(unit)
+	}
+
+	// search top-level keys for exact match to target, or for a child 'Name' equal to target
+	for k, v := range doc {
+		if strings.EqualFold(k, target) {
+			if m, ok := v.(map[string]interface{}); ok {
+				// prefer Buying field
+				for _, bk := range []string{"Buying", "buying", "Alis", "Alış", "alis"} {
+					if fv, ok := m[bk]; ok {
+						if p, err := toFloat64(fv); err == nil {
+							return p, nil
+						}
+					}
+				}
+				// otherwise any numeric child
+				for _, mv := range m {
+					if p, err := toFloat64(mv); err == nil {
+						return p, nil
+					}
+				}
+			}
+		}
+		// also check if the object's Name field matches the target
+		if m, ok := v.(map[string]interface{}); ok {
+			if namev, ok := m["Name"]; ok {
+				if ns, ok := namev.(string); ok && strings.EqualFold(ns, target) {
+					// found by Name
+					for _, bk := range []string{"Buying", "buying", "Alis", "Alış", "alis"} {
+						if fv, ok := m[bk]; ok {
+							if p, err := toFloat64(fv); err == nil {
+								return p, nil
+							}
+						}
+					}
+					for _, mv := range m {
+						if p, err := toFloat64(mv); err == nil {
+							return p, nil
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return 0, fmt.Errorf("could not find gold price for unit %s (target %s)", unit, target)
 }
 
 var (
@@ -432,6 +601,85 @@ func loadPortfolioFromFile() error {
 	}
 	portfolio = p
 	return nil
+}
+
+// Note: BES and CASH are stored directly in portfolio.json as PortfolioItem entries
+// with Lots=1 and Price equal to the user-provided value. We do not use a separate
+// other.json file anymore.
+
+// getOther returns the otherData map as JSON
+func getOther(w http.ResponseWriter, r *http.Request) {
+	// Build a small map containing BES and CASH values by reading portfolio
+	mu.Lock()
+	defer mu.Unlock()
+	res := map[string]float64{"BES": 0.0, "CASH": 0.0}
+	for _, it := range portfolio {
+		if strings.EqualFold(it.Symbol, "BES") {
+			res["BES"] = it.Price
+		}
+		if strings.EqualFold(it.Symbol, "CASH") {
+			res["CASH"] = it.Price
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(res); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// updateOther accepts a partial map of string->number and merges it into otherData
+func updateOther(w http.ResponseWriter, r *http.Request) {
+	// Accept partial map like {"BES": 12345, "CASH": 5000} and upsert into portfolio
+	var payload map[string]float64
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	mu.Lock()
+	defer mu.Unlock()
+
+	// snapshot for rollback
+	oldPortfolio := append([]models.PortfolioItem(nil), portfolio...)
+
+	for k, v := range payload {
+		// only allow BES and CASH (ignore other keys)
+		if !strings.EqualFold(k, "BES") && !strings.EqualFold(k, "CASH") {
+			continue
+		}
+		found := false
+		for i := range portfolio {
+			if strings.EqualFold(portfolio[i].Symbol, k) {
+				portfolio[i].Lots = 1
+				portfolio[i].Price = v
+				found = true
+				break
+			}
+		}
+		if !found {
+			portfolio = append(portfolio, models.PortfolioItem{Symbol: strings.ToUpper(k), Lots: 1, Price: v})
+		}
+	}
+
+	if err := savePortfolioToFile(); err != nil {
+		// revert
+		portfolio = oldPortfolio
+		log.Printf("failed to save portfolio after other update: %v", err)
+		http.Error(w, "failed to persist portfolio data", http.StatusInternalServerError)
+		return
+	}
+
+	// return the current BES/CASH values
+	res := map[string]float64{"BES": 0.0, "CASH": 0.0}
+	for _, it := range portfolio {
+		if strings.EqualFold(it.Symbol, "BES") {
+			res["BES"] = it.Price
+		}
+		if strings.EqualFold(it.Symbol, "CASH") {
+			res["CASH"] = it.Price
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(res)
 }
 
 // savePortfolioToFile writes the in-memory portfolio to the JSON file safely.
