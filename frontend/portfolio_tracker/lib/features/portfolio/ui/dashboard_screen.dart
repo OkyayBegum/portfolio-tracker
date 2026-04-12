@@ -101,6 +101,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _besController.text = besVal == 0.0 ? '' : besVal.toStringAsFixed(2);
         _cashController.text = cashVal == 0.0 ? '' : cashVal.toStringAsFixed(2);
       });
+      _sortListsDescending();
       _calculateGrandTotal();
     } catch (e) {
       setState(() {
@@ -134,6 +135,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _symbolController.clear();
         _amountController.clear();
       });
+      _sortListsDescending();
       _calculateGrandTotal();
     } catch (e) {
       setState(() => _error = 'Ekleme hatası: ${e.toString()}');
@@ -164,6 +166,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _golds.insert(0, g);
         _goldAmountController.clear();
       });
+      _sortListsDescending();
       _calculateGrandTotal();
     } catch (e) {
       setState(() => _error = 'Altın ekleme hatası: ${e.toString()}');
@@ -180,7 +183,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() {
       _stocks[index] = _stocks[index].copyWith(amount: val);
     });
+    _sortListsDescending();
     _calculateGrandTotal();
+  }
+
+  Future<void> _showEditAmountDialog({required bool isGold, required int index}) async {
+    final current = isGold ? _golds[index].amount : _stocks[index].amount;
+    final TextEditingController editCtrl = TextEditingController(text: current.toString());
+    final result = await showDialog<double?>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Miktarı Güncelle'),
+          content: TextField(
+            controller: editCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(hintText: 'Yeni miktar', isDense: true),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(null), child: const Text('İptal')),
+            TextButton(
+                onPressed: () {
+                  final v = double.tryParse(editCtrl.text.replaceAll(',', '.')) ?? current;
+                  Navigator.of(context).pop(v);
+                },
+                child: const Text('Tamam')),
+          ],
+        );
+      },
+    );
+
+    if (result != null) {
+      if (!mounted) return;
+      // Persist change to backend. Use current known unit price for the item when sending update.
+      setState(() {
+        _isLoading = true;
+      });
+      try {
+        final entry = isGold ? _golds[index] : _stocks[index];
+        final updated = await _backend.updateItem(entry.symbol, result, entry.price);
+        if (!mounted) return;
+        // backend returns updated item JSON; update local state from returned values
+        final updatedLots = (updated['lots'] is num) ? (updated['lots'] as num).toDouble() : double.tryParse(updated['lots'].toString()) ?? result;
+        final updatedPrice = (updated['price'] is num) ? (updated['price'] as num).toDouble() : double.tryParse(updated['price'].toString()) ?? entry.price;
+        setState(() {
+          if (isGold) {
+            _golds[index] = _golds[index].copyWith(amount: updatedLots, price: updatedPrice);
+          } else {
+            _stocks[index] = _stocks[index].copyWith(amount: updatedLots, price: updatedPrice);
+          }
+        });
+        _sortListsDescending();
+        _calculateGrandTotal();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Miktar güncellendi')));
+      } catch (e) {
+        // show error and do not change local value
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Güncelleme hatası: ${e.toString()}')));
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _deleteStock(int index) async {
@@ -191,6 +253,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       setState(() {
         _stocks.removeAt(index);
       });
+      _sortListsDescending();
       _calculateGrandTotal();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Silme hatası: ${e.toString()}')));
@@ -205,6 +268,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       setState(() {
         _golds.removeAt(index);
       });
+      _sortListsDescending();
       _calculateGrandTotal();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Silme hatası: ${e.toString()}')));
@@ -224,6 +288,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     total += bes + cash;
     setState(() {
       _grandTotal = total;
+    });
+  }
+
+  // sort both lists by total value (price * amount) descending
+  void _sortListsDescending() {
+    setState(() {
+      _stocks.sort((a, b) => (b.price * b.amount).compareTo(a.price * a.amount));
+      _golds.sort((a, b) => (b.price * b.amount).compareTo(a.price * a.amount));
     });
   }
 
@@ -254,6 +326,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // Pull-to-refresh handler used by RefreshIndicator
+  Future<void> _refreshPortfolio() async {
+    // simply reload portfolio; _loadPortfolio handles loading state
+    await _loadPortfolio();
+  }
+
   @override
   Widget build(BuildContext context) {
     // compute dynamic bottom padding so body content never collides with
@@ -262,18 +340,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // Simplified compact layout: smaller fonts, denser rows and normal resize
       // behavior. This avoids complex manual sizing and guarantees fit on small screens.
       WidgetsBinding.instance.addPostFrameCallback((_) => _measureBottomBar());
-      return Scaffold(
-        resizeToAvoidBottomInset: true,
-        appBar: AppBar(title: const Text('Portfolio Dashboard')),
-        body: SingleChildScrollView(
-          padding: EdgeInsets.only(
-            left: 12.0,
-            right: 12.0,
-            top: 12.0,
-            // ensure content can scroll above bottom bar and keyboard
-            bottom: _measuredNavBarHeight + 24 + MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: Column(
+      // if initial load and empty, show a centered circular progress indicator
+      final bodyWidget = SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.only(
+          left: 12.0,
+          right: 12.0,
+          top: 12.0,
+          // ensure content can scroll above bottom bar and keyboard
+          bottom: _measuredNavBarHeight + 24 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 6),
@@ -322,33 +399,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               child: ListTile(
                                 dense: true,
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
-                                title: Row(
-                                  children: [
-                                    Text(entry.symbol, style: const TextStyle(fontSize: 13)),
-                                    const Spacer(),
-                                    Text('₺${entry.price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                                  ],
-                                ),
+                                title: Text(entry.symbol, style: const TextStyle(fontSize: 13)),
                                 subtitle: Row(
                                   children: [
                                     const Text('Amt', style: TextStyle(fontSize: 12)),
                                     const SizedBox(width: 6),
-                                    SizedBox(
-                                      width: 64,
-                                      child: TextField(
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                        controller: TextEditingController(text: entry.amount.toString()),
-                                        onChanged: (v) => _updateAmount(index, v),
-                                        decoration: const InputDecoration(isDense: true, border: InputBorder.none),
-                                        style: const TextStyle(fontSize: 13),
+                                    GestureDetector(
+                                      onTap: () => _showEditAmountDialog(isGold: false, index: index),
+                                      child: Container(
+                                        width: 64,
+                                        padding: const EdgeInsets.symmetric(vertical: 6),
+                                        child: Text(entry.amount.toString(), style: const TextStyle(fontSize: 13)),
                                       ),
                                     ),
                                   ],
                                 ),
-                                trailing: IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), onPressed: () => _deleteStock(index)),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Text('₺${formatTurkishCurrency(entry.price * entry.amount)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                    const SizedBox(width: 8),
+                                    IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), onPressed: () => _deleteStock(index)),
+                                  ],
+                                ),
                               ),
                             );
                         },
+                      ),
+                      // Bist total
+                      const SizedBox(height: 6),
+                      Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6.0, left: 4, right: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Total', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            Text('₺${formatTurkishCurrency(_stocks.fold(0.0, (p, e) => p + e.price * e.amount))}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -388,7 +478,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          ElevatedButton(onPressed: _isLoading ? null : _addGold, child: const Text('Ekle', style: TextStyle(fontSize: 12))),
+                          ElevatedButton(onPressed: _isLoading ? null : _addGold, child: const Text('Add', style: TextStyle(fontSize: 12))),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -406,38 +496,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               child: ListTile(
                                 dense: true,
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
-                                title: Row(
-                                  children: [
-                                    Text(g.symbol, style: const TextStyle(fontSize: 13)),
-                                    const Spacer(),
-                                    Text('₺${g.price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                                  ],
-                                ),
+                                  title: Text(g.symbol, style: const TextStyle(fontSize: 13)),
                                 subtitle: Row(
                                   children: [
                                     const Text('Amt', style: TextStyle(fontSize: 12)),
                                     const SizedBox(width: 6),
-                                    SizedBox(
-                                      width: 64,
-                                      child: TextField(
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                        controller: TextEditingController(text: g.amount.toString()),
-                                        onChanged: (v) {
-                                          final amt = double.tryParse(v) ?? 0.0;
-                                          setState(() => _golds[gindex] = _golds[gindex].copyWith(amount: amt));
-                                          _calculateGrandTotal();
-                                        },
-                                        decoration: const InputDecoration(isDense: true, border: InputBorder.none),
-                                        style: const TextStyle(fontSize: 13),
+                                    GestureDetector(
+                                      onTap: () => _showEditAmountDialog(isGold: true, index: gindex),
+                                      child: Container(
+                                        width: 64,
+                                        padding: const EdgeInsets.symmetric(vertical: 6),
+                                        child: Text(g.amount.toString(), style: const TextStyle(fontSize: 13)),
                                       ),
                                     ),
                                   ],
                                 ),
-                                trailing: IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), onPressed: () => _deleteGold(gindex)),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Text('₺${formatTurkishCurrency(g.price * g.amount)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                    const SizedBox(width: 8),
+                                    IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), onPressed: () => _deleteGold(gindex)),
+                                  ],
+                                ),
                               ),
                             );
                           },
                         ),
+                      // Altın total
+                      const SizedBox(height: 6),
+                      Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6.0, left: 4, right: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Total', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            Text('₺${formatTurkishCurrency(_golds.fold(0.0, (p, e) => p + e.price * e.amount))}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -465,7 +564,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          ElevatedButton(onPressed: _isLoading ? null : () => _saveOtherKey('BES', _besController), child: const Text('Kaydet', style: TextStyle(fontSize: 12))),
+                          ElevatedButton(onPressed: _isLoading ? null : () => _saveOtherKey('BES', _besController), child: const Text('Save', style: TextStyle(fontSize: 12))),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -482,7 +581,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          ElevatedButton(onPressed: _isLoading ? null : () => _saveOtherKey('CASH', _cashController), child: const Text('Kaydet', style: TextStyle(fontSize: 12))),
+                          ElevatedButton(onPressed: _isLoading ? null : () => _saveOtherKey('CASH', _cashController), child: const Text('Save', style: TextStyle(fontSize: 12))),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Divider(),
+                      const SizedBox(height: 6),
+                      // Show only BES + CASH total inside "Diğer Portföyüm"
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Total', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          Text(
+                            '₺${formatTurkishCurrency((double.tryParse(_besController.text.replaceAll(',', '.')) ?? 0.0) + (double.tryParse(_cashController.text.replaceAll(',', '.')) ?? 0.0))}',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
                         ],
                       ),
                     ],
@@ -492,7 +605,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 12),
             ],
           ),
-        ),
+        );
+
+      return Scaffold(
+        resizeToAvoidBottomInset: true,
+        appBar: AppBar(title: const Text('Portfolio Dashboard')),
+        body: _isLoading && _stocks.isEmpty && _golds.isEmpty
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(onRefresh: _refreshPortfolio, child: bodyWidget),
       bottomNavigationBar: AnimatedPadding(
         duration: const Duration(milliseconds: 150),
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),

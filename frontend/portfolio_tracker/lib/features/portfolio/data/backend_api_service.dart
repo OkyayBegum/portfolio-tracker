@@ -83,4 +83,15 @@ class BackendApiService {
     final Map<String, dynamic> decoded = json.decode(res.body) as Map<String, dynamic>;
     return decoded.map((k, v) => MapEntry(k, (v as num).toDouble()));
   }
+
+  // Update a portfolio item (symbol, lots, price). Backend expects a full PortfolioItem JSON.
+  Future<Map<String, dynamic>> updateItem(String symbol, double lots, double price) async {
+    final uri = Uri.parse('$baseUrl/api/update');
+    final payload = {'symbol': symbol, 'lots': lots, 'price': price};
+    final res = await http.put(uri, headers: {'Content-Type': 'application/json'}, body: json.encode(payload));
+    if (res.statusCode != 200) {
+      throw Exception('updateItem failed: ${res.statusCode} ${res.body}');
+    }
+    return json.decode(res.body) as Map<String, dynamic>;
+  }
 }
