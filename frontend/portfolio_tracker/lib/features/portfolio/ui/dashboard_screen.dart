@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import '../data/backend_api_service.dart';
 
@@ -72,8 +71,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _error = null;
     });
     try {
-  final items = await _backend.getPortfolio();
-  if (!mounted) return;
+      final items = await _backend.getPortfolio();
+      if (!mounted) return;
       final List<_StockEntry> stocks = [];
       final List<_StockEntry> golds = [];
       double besVal = 0.0;
@@ -81,14 +80,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       for (final it in items) {
         final sym = (it['symbol'] ?? '').toString();
-        final lots = (it['lots'] is num) ? (it['lots'] as num).toDouble() : double.tryParse(it['lots'].toString()) ?? 0.0;
-        final price = (it['price'] is num) ? (it['price'] as num).toDouble() : double.tryParse(it['price'].toString()) ?? 0.0;
+        final lots = (it['lots'] is num)
+            ? (it['lots'] as num).toDouble()
+            : double.tryParse(it['lots'].toString()) ?? 0.0;
+        final price = (it['price'] is num)
+            ? (it['price'] as num).toDouble()
+            : double.tryParse(it['price'].toString()) ?? 0.0;
 
         if (sym == 'BES') {
           besVal = price;
         } else if (sym == 'CASH') {
           cashVal = price;
-        } else if (['GRAMALTIN', 'CEYREKALTIN', 'YARIMALTIN', 'TAMALTIN'].contains(sym) || sym.startsWith('ALTIN-')) {
+        } else if (['GRAMALTIN', 'CEYREKALTIN', 'YARIMALTIN', 'TAMALTIN']
+                .contains(sym) ||
+            sym.startsWith('ALTIN-')) {
           golds.add(_StockEntry(symbol: sym, amount: lots, price: price));
         } else {
           stocks.add(_StockEntry(symbol: sym, amount: lots, price: price));
@@ -123,12 +128,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _error = null;
     });
     try {
-  final created = await _backend.addItem(symbol, lotsInt);
-  if (!mounted) return;
+      final created = await _backend.addItem(symbol, lotsInt);
+      if (!mounted) return;
       final s = _StockEntry(
         symbol: created['symbol'].toString(),
-        amount: (created['lots'] is num) ? (created['lots'] as num).toDouble() : double.tryParse(created['lots'].toString()) ?? lotsInt.toDouble(),
-        price: (created['price'] is num) ? (created['price'] as num).toDouble() : double.tryParse(created['price'].toString()) ?? 0.0,
+        amount: (created['lots'] is num)
+            ? (created['lots'] as num).toDouble()
+            : double.tryParse(created['lots'].toString()) ?? lotsInt.toDouble(),
+        price: (created['price'] is num)
+            ? (created['price'] as num).toDouble()
+            : double.tryParse(created['price'].toString()) ?? 0.0,
       );
       setState(() {
         _stocks.insert(0, s);
@@ -139,7 +148,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _calculateGrandTotal();
     } catch (e) {
       setState(() => _error = 'Ekleme hatası: ${e.toString()}');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_error ?? 'Hata')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(_error ?? 'Hata')));
     } finally {
       setState(() {
         _isLoading = false;
@@ -148,19 +158,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _addGold() async {
-    final amt = double.tryParse(_goldAmountController.text.replaceAll(',', '.')) ?? 0.0;
+    final amt =
+        double.tryParse(_goldAmountController.text.replaceAll(',', '.')) ?? 0.0;
     if (amt <= 0) return;
     setState(() {
       _isLoading = true;
       _error = null;
     });
     try {
-  final created = await _backend.addGold(_selectedGoldUnit, amt);
-  if (!mounted) return;
+      final created = await _backend.addGold(_selectedGoldUnit, amt);
+      if (!mounted) return;
       final g = _StockEntry(
         symbol: created['symbol'].toString(),
-        amount: (created['lots'] is num) ? (created['lots'] as num).toDouble() : double.tryParse(created['lots'].toString()) ?? amt,
-        price: (created['price'] is num) ? (created['price'] as num).toDouble() : double.tryParse(created['price'].toString()) ?? 0.0,
+        amount: (created['lots'] is num)
+            ? (created['lots'] as num).toDouble()
+            : double.tryParse(created['lots'].toString()) ?? amt,
+        price: (created['price'] is num)
+            ? (created['price'] as num).toDouble()
+            : double.tryParse(created['price'].toString()) ?? 0.0,
       );
       setState(() {
         _golds.insert(0, g);
@@ -170,7 +185,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _calculateGrandTotal();
     } catch (e) {
       setState(() => _error = 'Altın ekleme hatası: ${e.toString()}');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_error ?? 'Hata')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(_error ?? 'Hata')));
     } finally {
       setState(() {
         _isLoading = false;
@@ -187,9 +203,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _calculateGrandTotal();
   }
 
-  Future<void> _showEditAmountDialog({required bool isGold, required int index}) async {
+  Future<void> _showEditAmountDialog(
+      {required bool isGold, required int index}) async {
     final current = isGold ? _golds[index].amount : _stocks[index].amount;
-    final TextEditingController editCtrl = TextEditingController(text: current.toString());
+    final TextEditingController editCtrl =
+        TextEditingController(text: current.toString());
     final result = await showDialog<double?>(
       context: context,
       builder: (context) {
@@ -198,13 +216,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
           content: TextField(
             controller: editCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(hintText: 'Yeni miktar', isDense: true),
+            decoration:
+                const InputDecoration(hintText: 'Yeni miktar', isDense: true),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(null), child: const Text('İptal')),
+            TextButton(
+                onPressed: () => Navigator.of(context).pop(null),
+                child: const Text('İptal')),
             TextButton(
                 onPressed: () {
-                  final v = double.tryParse(editCtrl.text.replaceAll(',', '.')) ?? current;
+                  final v =
+                      double.tryParse(editCtrl.text.replaceAll(',', '.')) ??
+                          current;
                   Navigator.of(context).pop(v);
                 },
                 child: const Text('Tamam')),
@@ -221,24 +244,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
       try {
         final entry = isGold ? _golds[index] : _stocks[index];
-        final updated = await _backend.updateItem(entry.symbol, result, entry.price);
+        final updated =
+            await _backend.updateItem(entry.symbol, result, entry.price);
         if (!mounted) return;
         // backend returns updated item JSON; update local state from returned values
-        final updatedLots = (updated['lots'] is num) ? (updated['lots'] as num).toDouble() : double.tryParse(updated['lots'].toString()) ?? result;
-        final updatedPrice = (updated['price'] is num) ? (updated['price'] as num).toDouble() : double.tryParse(updated['price'].toString()) ?? entry.price;
+        final updatedLots = (updated['lots'] is num)
+            ? (updated['lots'] as num).toDouble()
+            : double.tryParse(updated['lots'].toString()) ?? result;
+        final updatedPrice = (updated['price'] is num)
+            ? (updated['price'] as num).toDouble()
+            : double.tryParse(updated['price'].toString()) ?? entry.price;
         setState(() {
           if (isGold) {
-            _golds[index] = _golds[index].copyWith(amount: updatedLots, price: updatedPrice);
+            _golds[index] = _golds[index]
+                .copyWith(amount: updatedLots, price: updatedPrice);
           } else {
-            _stocks[index] = _stocks[index].copyWith(amount: updatedLots, price: updatedPrice);
+            _stocks[index] = _stocks[index]
+                .copyWith(amount: updatedLots, price: updatedPrice);
           }
         });
         _sortListsDescending();
         _calculateGrandTotal();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Miktar güncellendi')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Miktar güncellendi')));
       } catch (e) {
         // show error and do not change local value
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Güncelleme hatası: ${e.toString()}')));
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Güncelleme hatası: ${e.toString()}')));
       } finally {
         if (mounted) setState(() => _isLoading = false);
       }
@@ -256,7 +289,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _sortListsDescending();
       _calculateGrandTotal();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Silme hatası: ${e.toString()}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Silme hatası: ${e.toString()}')));
     }
   }
 
@@ -271,7 +305,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _sortListsDescending();
       _calculateGrandTotal();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Silme hatası: ${e.toString()}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Silme hatası: ${e.toString()}')));
     }
   }
 
@@ -283,8 +318,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     for (final g in _golds) {
       total += g.price * g.amount;
     }
-    final bes = double.tryParse(_besController.text.replaceAll(',', '.')) ?? 0.0;
-    final cash = double.tryParse(_cashController.text.replaceAll(',', '.')) ?? 0.0;
+    final bes =
+        double.tryParse(_besController.text.replaceAll(',', '.')) ?? 0.0;
+    final cash =
+        double.tryParse(_cashController.text.replaceAll(',', '.')) ?? 0.0;
     total += bes + cash;
     setState(() {
       _grandTotal = total;
@@ -294,7 +331,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // sort both lists by total value (price * amount) descending
   void _sortListsDescending() {
     setState(() {
-      _stocks.sort((a, b) => (b.price * b.amount).compareTo(a.price * a.amount));
+      _stocks
+          .sort((a, b) => (b.price * b.amount).compareTo(a.price * a.amount));
       _golds.sort((a, b) => (b.price * b.amount).compareTo(a.price * a.amount));
     });
   }
@@ -316,13 +354,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // reload portfolio so BES/CASH entries (saved into portfolio.json) are visible and totals update
       await _loadPortfolio();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kaydedildi')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Kaydedildi')));
     } catch (e) {
       setState(() {
         _isLoading = false;
         _error = 'Kaydetme hatası: ${e.toString()}';
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_error ?? 'Hata')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(_error ?? 'Hata')));
     }
   }
 
@@ -337,300 +377,393 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // compute dynamic bottom padding so body content never collides with
     // the bottom navigation bar or the on-screen keyboard. This prevents
     // "Bottom overflowed by X pixels" errors on small screens.
-      // Simplified compact layout: smaller fonts, denser rows and normal resize
-      // behavior. This avoids complex manual sizing and guarantees fit on small screens.
-      WidgetsBinding.instance.addPostFrameCallback((_) => _measureBottomBar());
-      // if initial load and empty, show a centered circular progress indicator
-      final bodyWidget = SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.only(
-          left: 12.0,
-          right: 12.0,
-          top: 12.0,
-          // ensure content can scroll above bottom bar and keyboard
-          bottom: _measuredNavBarHeight + 24 + MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 6),
-              if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-              const SizedBox(height: 6),
-              const Text('Bist Portföyüm', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 6),
-
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
+    // Simplified compact layout: smaller fonts, denser rows and normal resize
+    // behavior. This avoids complex manual sizing and guarantees fit on small screens.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureBottomBar());
+    // if initial load and empty, show a centered circular progress indicator
+    final bodyWidget = SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.only(
+        left: 12.0,
+        right: 12.0,
+        top: 12.0,
+        // ensure content can scroll above bottom bar and keyboard
+        bottom: _measuredNavBarHeight +
+            24 +
+            MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 6),
+          if (_error != null)
+            Text(_error!,
+                style: const TextStyle(color: Colors.red, fontSize: 12)),
+          const SizedBox(height: 6),
+          const Text('Bist Portföyüm',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _symbolController,
-                              decoration: const InputDecoration(labelText: 'Stock Symbol', isDense: true),
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 72,
-                            child: TextField(
-                              controller: _amountController,
-                              keyboardType: TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(labelText: 'Amt', isDense: true),
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(onPressed: _isLoading ? null : _addStock, child: const Text('Add', style: TextStyle(fontSize: 12))),
-                        ],
+                      Expanded(
+                        child: TextField(
+                          controller: _symbolController,
+                          decoration: const InputDecoration(
+                              labelText: 'Stock Symbol', isDense: true),
+                          style: const TextStyle(fontSize: 13),
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _stocks.length,
-                        itemBuilder: (context, index) {
-                          final entry = _stocks[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 6.0),
-                              child: ListTile(
-                                dense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
-                                title: Text(entry.symbol, style: const TextStyle(fontSize: 13)),
-                                subtitle: Row(
-                                  children: [
-                                    const Text('Amt', style: TextStyle(fontSize: 12)),
-                                    const SizedBox(width: 6),
-                                    GestureDetector(
-                                      onTap: () => _showEditAmountDialog(isGold: false, index: index),
-                                      child: Container(
-                                        width: 64,
-                                        padding: const EdgeInsets.symmetric(vertical: 6),
-                                        child: Text(entry.amount.toString(), style: const TextStyle(fontSize: 13)),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Text('₺${formatTurkishCurrency(entry.price * entry.amount)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                                    const SizedBox(width: 8),
-                                    IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), onPressed: () => _deleteStock(index)),
-                                  ],
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 72,
+                        child: TextField(
+                          controller: _amountController,
+                          keyboardType:
+                              TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                              labelText: 'Amt', isDense: true),
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                          onPressed: _isLoading ? null : _addStock,
+                          child: const Text('Add',
+                              style: TextStyle(fontSize: 12))),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _stocks.length,
+                    itemBuilder: (context, index) {
+                      final entry = _stocks[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6.0),
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8.0, vertical: 2.0),
+                          title: Text(entry.symbol,
+                              style: const TextStyle(fontSize: 13)),
+                          subtitle: Row(
+                            children: [
+                              const Text('Amt', style: TextStyle(fontSize: 12)),
+                              const SizedBox(width: 6),
+                              GestureDetector(
+                                onTap: () => _showEditAmountDialog(
+                                    isGold: false, index: index),
+                                child: Container(
+                                  width: 64,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  child: Text(entry.amount.toString(),
+                                      style: const TextStyle(fontSize: 13)),
                                 ),
                               ),
-                            );
-                        },
-                      ),
-                      // Bist total
-                      const SizedBox(height: 6),
-                      Divider(height: 1),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6.0, left: 4, right: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Total', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                            Text('₺${formatTurkishCurrency(_stocks.fold(0.0, (p, e) => p + e.price * e.amount))}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          ],
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                  '₺${formatTurkishCurrency(entry.price * entry.amount)}',
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                  icon: const Icon(Icons.delete,
+                                      size: 18, color: Colors.red),
+                                  onPressed: () => _deleteStock(index)),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Altın Portföyüm', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _goldAmountController,
-                              keyboardType: TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(labelText: 'Adet / Ağırlık', isDense: true),
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 96,
-                            child: DropdownButtonFormField<String>(
-                              value: _selectedGoldUnit,
-                              items: _goldUnits.map((u) => DropdownMenuItem(value: u, child: Text(u, style: TextStyle(fontSize: 13)))).toList(),
-                              onChanged: (v) {
-                                if (v == null) return;
-                                setState(() => _selectedGoldUnit = v);
-                              },
-                              decoration: const InputDecoration(labelText: 'Birim', isDense: true),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(onPressed: _isLoading ? null : _addGold, child: const Text('Add', style: TextStyle(fontSize: 12))),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      if (_golds.isEmpty)
-                        const Text('Altın portföyünüz boş', style: TextStyle(fontSize: 12))
-                      else
-                        ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _golds.length,
-                          itemBuilder: (context, gindex) {
-                            final g = _golds[gindex];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 6.0),
-                              child: ListTile(
-                                dense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
-                                  title: Text(g.symbol, style: const TextStyle(fontSize: 13)),
-                                subtitle: Row(
-                                  children: [
-                                    const Text('Amt', style: TextStyle(fontSize: 12)),
-                                    const SizedBox(width: 6),
-                                    GestureDetector(
-                                      onTap: () => _showEditAmountDialog(isGold: true, index: gindex),
-                                      child: Container(
-                                        width: 64,
-                                        padding: const EdgeInsets.symmetric(vertical: 6),
-                                        child: Text(g.amount.toString(), style: const TextStyle(fontSize: 13)),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Text('₺${formatTurkishCurrency(g.price * g.amount)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                                    const SizedBox(width: 8),
-                                    IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), onPressed: () => _deleteGold(gindex)),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      // Altın total
-                      const SizedBox(height: 6),
-                      Divider(height: 1),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6.0, left: 4, right: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Total', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                            Text('₺${formatTurkishCurrency(_golds.fold(0.0, (p, e) => p + e.price * e.amount))}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                      ),
-                    ],
+                  // Bist total
+                  const SizedBox(height: 6),
+                  Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6.0, left: 4, right: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Total',
+                            style: TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                        Text(
+                            '₺${formatTurkishCurrency(_stocks.fold(0.0, (p, e) => p + e.price * e.amount))}',
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(height: 8),
-
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Diğer Portföyüm', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          const SizedBox(width: 84, child: Text('BES', style: TextStyle(fontSize: 13))),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: _besController,
-                              keyboardType: TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(labelText: 'TL', isDense: true),
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(onPressed: _isLoading ? null : () => _saveOtherKey('BES', _besController), child: const Text('Save', style: TextStyle(fontSize: 12))),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const SizedBox(width: 84, child: Text('Cash', style: TextStyle(fontSize: 13))),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: _cashController,
-                              keyboardType: TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(labelText: 'TL', isDense: true),
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(onPressed: _isLoading ? null : () => _saveOtherKey('CASH', _cashController), child: const Text('Save', style: TextStyle(fontSize: 12))),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      const Divider(),
-                      const SizedBox(height: 6),
-                      // Show only BES + CASH total inside "Diğer Portföyüm"
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Total', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          Text(
-                            '₺${formatTurkishCurrency((double.tryParse(_besController.text.replaceAll(',', '.')) ?? 0.0) + (double.tryParse(_cashController.text.replaceAll(',', '.')) ?? 0.0))}',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        );
-
-      return Scaffold(
-        resizeToAvoidBottomInset: true,
-        appBar: AppBar(title: const Text('Portfolio Dashboard')),
-        body: _isLoading && _stocks.isEmpty && _golds.isEmpty
-            ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(onRefresh: _refreshPortfolio, child: bodyWidget),
-      bottomNavigationBar: AnimatedPadding(
-        duration: const Duration(milliseconds: 150),
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: SafeArea(
-          top: false,
-          child: Container(
-            key: _bottomBarKey,
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-            color: Theme.of(context).cardColor,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Grand Total', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                FittedBox(fit: BoxFit.scaleDown, child: Text('₺${formatTurkishCurrency(_grandTotal)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-              ],
             ),
           ),
-        ),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Altın Portföyüm',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _goldAmountController,
+                          keyboardType:
+                              TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                              labelText: 'Adet / Ağırlık', isDense: true),
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 96,
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedGoldUnit,
+                          items: _goldUnits
+                              .map((u) => DropdownMenuItem(
+                                  value: u,
+                                  child:
+                                      Text(u, style: TextStyle(fontSize: 13))))
+                              .toList(),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setState(() => _selectedGoldUnit = v);
+                          },
+                          decoration: const InputDecoration(
+                              labelText: 'Birim', isDense: true),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                          onPressed: _isLoading ? null : _addGold,
+                          child: const Text('Add',
+                              style: TextStyle(fontSize: 12))),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  if (_golds.isEmpty)
+                    const Text('Altın portföyünüz boş',
+                        style: TextStyle(fontSize: 12))
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _golds.length,
+                      itemBuilder: (context, gindex) {
+                        final g = _golds[gindex];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6.0),
+                          child: ListTile(
+                            dense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8.0, vertical: 2.0),
+                            title: Text(g.symbol,
+                                style: const TextStyle(fontSize: 13)),
+                            subtitle: Row(
+                              children: [
+                                const Text('Amt',
+                                    style: TextStyle(fontSize: 12)),
+                                const SizedBox(width: 6),
+                                GestureDetector(
+                                  onTap: () => _showEditAmountDialog(
+                                      isGold: true, index: gindex),
+                                  child: Container(
+                                    width: 64,
+                                    padding:
+                                        const EdgeInsets.symmetric(vertical: 6),
+                                    child: Text(g.amount.toString(),
+                                        style: const TextStyle(fontSize: 13)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Text(
+                                    '₺${formatTurkishCurrency(g.price * g.amount)}',
+                                    style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600)),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                    icon: const Icon(Icons.delete,
+                                        size: 18, color: Colors.red),
+                                    onPressed: () => _deleteGold(gindex)),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  // Altın total
+                  const SizedBox(height: 6),
+                  Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6.0, left: 4, right: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Total',
+                            style: TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                        Text(
+                            '₺${formatTurkishCurrency(_golds.fold(0.0, (p, e) => p + e.price * e.amount))}',
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Diğer Portföyüm',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const SizedBox(
+                          width: 84,
+                          child: Text('BES', style: TextStyle(fontSize: 13))),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _besController,
+                          keyboardType:
+                              TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                              labelText: 'TL', isDense: true),
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () => _saveOtherKey('BES', _besController),
+                          child: const Text('Save',
+                              style: TextStyle(fontSize: 12))),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const SizedBox(
+                          width: 84,
+                          child: Text('Cash', style: TextStyle(fontSize: 13))),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _cashController,
+                          keyboardType:
+                              TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                              labelText: 'TL', isDense: true),
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () => _saveOtherKey('CASH', _cashController),
+                          child: const Text('Save',
+                              style: TextStyle(fontSize: 12))),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(),
+                  const SizedBox(height: 6),
+                  // Show only BES + CASH total inside "Diğer Portföyüm"
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
+                      Text(
+                        '₺${formatTurkishCurrency((double.tryParse(_besController.text.replaceAll(',', '.')) ?? 0.0) + (double.tryParse(_cashController.text.replaceAll(',', '.')) ?? 0.0))}',
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+
+    return SafeArea(
+      child: Column(
+        children: [
+          Expanded(
+            child: _isLoading && _stocks.isEmpty && _golds.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _refreshPortfolio, child: bodyWidget),
+          ),
+          AnimatedPadding(
+            duration: const Duration(milliseconds: 150),
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: SafeArea(
+              top: false,
+              child: Container(
+                key: _bottomBarKey,
+                padding:
+                    const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                color: Theme.of(context).cardColor,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Grand Total',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600)),
+                    FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('₺${formatTurkishCurrency(_grandTotal)}',
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold))),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -655,7 +788,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       sb.write(intStr.substring(i, i + 3));
     }
     final fracStr = frac.toString().padLeft(2, '0');
-  return '${negative ? '-' : ''}$sb,$fracStr';
+    return '${negative ? '-' : ''}$sb,$fracStr';
   }
 }
 
@@ -664,10 +797,13 @@ class _StockEntry {
   final double amount;
   final double price;
 
-  _StockEntry({required this.symbol, required this.amount, required this.price});
+  _StockEntry(
+      {required this.symbol, required this.amount, required this.price});
 
   _StockEntry copyWith({String? symbol, double? amount, double? price}) {
-    return _StockEntry(symbol: symbol ?? this.symbol, amount: amount ?? this.amount, price: price ?? this.price);
+    return _StockEntry(
+        symbol: symbol ?? this.symbol,
+        amount: amount ?? this.amount,
+        price: price ?? this.price);
   }
 }
-
